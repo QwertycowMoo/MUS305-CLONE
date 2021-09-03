@@ -34,6 +34,7 @@ if __name__ == '__main__':
     score = Score(out=seq)
     # our text to play
     text = "Hello World!"
+    text = text.upper()
     # tell the score to use our composer to create the composition.
     score.compose(playstring(score, text, .25, .25, .75) )
     # write the midi file
