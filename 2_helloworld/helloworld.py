@@ -7,38 +7,60 @@
 
 # Use this link to learn about the common musx imports listed below.
 # https://musx-admin.github.io/musx/index.html
-from musx import Score, Seq, Note, MidiFile, MidiEvent
+from musx import Score, Seq, Note, MidiFile, rescale
 from musx.midi import gm
+import argparse
 
 
 # define a composer (generator) that will add notes to our score.
-def playstring(score, string, rhy, dur, amp):
-    # the builtin ord() function converts a single char into its
-    # ascii code point (an integer 0-127). The builtin map() function
-    # returns an iterator that will apply its first arg (a function)
-    # to every element in its second arg (an iterable).
+def playstring(score, string, rhy, dur, amp, chan=0):
     for char in map(ord, string):
         # create a note to play each asci code point as a MIDI key number
         # with a specified onset, duration and amplitude.
-        note = Note(time=score.now, duration=dur, pitch=char, amplitude=amp)
+        p =  rescale(char, 0, 127, 10, 80)
+        note = Note(time=score.now, duration=dur, pitch=p, amplitude=amp, instrument=chan)
         # add the note at the current time in the score
         score.add(note)
         # yield back the time to wait until the composer is called again.
         yield rhy
 
+def playbassstring(score, string, rhy, dur, amp, chan=0):
+    # copy of play string except the pitch is 127-char
+    for char in map(ord, string):
+        p =  rescale(char, 0, 127, 34, 50)
+        note = Note(time=score.now, duration=dur, pitch=p, amplitude=amp, instrument=chan)
+       
+        score.add(note)
+
+        yield rhy
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='hello world')
+    parser.add_argument("-c", "--chan", help="Which MIDI channel to play sonification on", default=1, type=int)
+    channel = parser.parse_args()
+    print(channel)
     # allocate a sequence to hold our notes
     seq = Seq()
+    invertSeq = Seq()
+    # TODO: Need to make a new Seq() with tempo and instrument data?
+
+
+
     # allocate a score and give it the sequence 
     score = Score(out=seq)
+    meta = MidiFile.metatrack(ins={0: gm.ElectricPiano1, 1:gm.ElectricBass_pick})
+    scoreInv = Score(out=invertSeq)
     # our text to play
-    text = "Hello World!"
+    text = "Hello World!Hello World!Hello World!Hello World!Hello World!"
+    basstext = "Hello World!Hello World!Hello World!Hello World!"
     text = text.upper()
+    basstext = basstext.upper()
     # tell the score to use our composer to create the composition.
-    score.compose(playstring(score, text, .25, .25, .75) )
+    score.compose([playstring(score, text, .4, .25, .75),playbassstring(score, basstext, .5, .25, .75)])
     # write the midi file
-    MidiFile("helloworld.mid", seq).write()
+    MidiFile("helloworld.mid", [meta, seq]).write()
+    # print out the sequence
+    seq.print()
     # success!
     print("Wrote helloworld.mid")
 
