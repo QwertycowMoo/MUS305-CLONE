@@ -35,13 +35,17 @@ def playbassstring(score, string, rhy, dur, amp, chan=0):
         yield rhy
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='hello world')
-    parser.add_argument("-c", "--chan", help="Which MIDI channel to play sonification on", default=1, type=int)
-    channel = parser.parse_args()
-    print(channel)
+    #
+    # parser = argparse.ArgumentParser(description='hello world')
+    # parser.add_argument("-c", "--chan", help="Which MIDI channel to play sonification on", default=1, type=int)
+    # channel = parser.parse_args()
+    # print(channel)
+
     # allocate a sequence to hold our notes
     seq = Seq()
-    invertSeq = Seq()
+    # Found that we only need one score and one sequence. Instead, we give multiple generators to the same score
+    # Score has a sequence that is then played later
+    # invertSeq = Seq()
     # TODO: Need to make a new Seq() with tempo and instrument data?
 
 
@@ -49,7 +53,7 @@ if __name__ == '__main__':
     # allocate a score and give it the sequence 
     score = Score(out=seq)
     meta = MidiFile.metatrack(ins={0: gm.ElectricPiano1, 1:gm.ElectricBass_pick})
-    scoreInv = Score(out=invertSeq)
+    # scoreInv = Score(out=invertSeq)
     # our text to play
     text = "Hello World!Hello World!Hello World!Hello World!Hello World!"
     basstext = "Hello World!Hello World!Hello World!Hello World!"
