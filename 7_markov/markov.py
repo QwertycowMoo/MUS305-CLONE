@@ -101,7 +101,7 @@ def markov_composer(score, startingPitch, rhy, amp, section_length, channels):
         if composer == 0:
             break
         chan = channels
-        if channels is list:
+        if isinstance(channels, list):
             chan = channels[i % len(channels)]
         score.compose(composer(score, startingPitch, rhy, amp, section_length, chan))
         yield rhy * section_length
@@ -110,7 +110,8 @@ if __name__ == "__main__":
     
     seq = Seq()
     score = Score(out=seq)
-    meta = MidiFile.metatrack(ins={0: gm.ElectricBass_finger, 1: gm.ElectricPiano2})
-    score.compose([markov_composer(score, 60, 1, .8, 2, 0)])
-    MidiFile("randchords.mid", [meta, seq]).write()
-    seq.print()
+    meta = MidiFile.metatrack(ins={0: gm.Accordion, 1: gm.ElectricPiano2})
+    channels = [0, 1]
+    score.compose([markov_composer(score, 60, .8, .8, 2, channels)])
+    MidiFile("markov.mid", [meta, seq]).write()
+    # seq.print()
