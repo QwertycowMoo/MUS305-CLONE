@@ -13,10 +13,10 @@ waittime = 2
 print("available output ports:", outports)
 print("available input ports:", inports)
 
-# midiout.open_port(outports.index("mio 1"))
-midiout.open_port(outports.index("AbletonIn 1"))
-# midiin.open_port(inports.index("mio 0"))
-midiin.open_port(inports.index("MK-249C USB MIDI keyboard 2"))
+midiout.open_port(outports.index("mio 1"))
+# midiout.open_port(outports.index("AbletonIn 1"))
+midiin.open_port(inports.index("mio 0"))
+# midiin.open_port(inports.index("MK-249C USB MIDI keyboard 2")) 
 
 
 

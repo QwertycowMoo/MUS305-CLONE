@@ -10,7 +10,7 @@ import random
 # 2. double turns going outwards from single turn
 # 3. more turns going outwards from double turns
 # 4. octave quarter notes on some note
-# 5. Maybe some triplet figure
+# 5. Maybe some triplet figure?
 def turn(score, startPitch, modify, rhy, amp, length, chan=0, rev=False):
     # the length of this function is the total number of notes, not the number of beats to fill
     # Same with rhy, expects individual note length not length of beat in the x_order_turn functions
