@@ -39,6 +39,8 @@ def stock_composer(score, ticker, numweeks, scale, lowk=48, hik=90, dur=0.5, cha
     # rescale data into scale
     for p in data:
         keynum = rescale(p, datamin, datamax, lowk, hik)
+        
+        # if not len(scale) == 0: maybe have a choice for microtonal things?
         keynum = quantize_to_scale(keynum, lowk, scale)
         # scale amplitude as well
         amp = rescale(p, datamin, datamax, 0.2, 0.9)
@@ -57,12 +59,12 @@ def quantize_to_scale(keynum, root, scale):
     return keynum + quan_diff
 
 # Code from stack overflow but I ran out of time so I'm using it
-# By Lauritz V. Thaulow 
+# By Lauritz V. Thaulow, runs in O(logn) time because sorted
 from bisect import bisect_left
 
 def take_closest(myList, myNumber):
     """
-    Assumes myList is sorted. Returns closest value to myNumber.
+    Assumes myList(scale list) is sorted. Returns closest value to myNumber.
 
     If two numbers are equally close, return the smallest number.
     """
