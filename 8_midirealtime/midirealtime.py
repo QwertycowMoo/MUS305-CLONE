@@ -13,14 +13,15 @@ waittime = 2
 print("available output ports:", outports)
 print("available input ports:", inports)
 
-midiout.open_port(outports.index("mio 1"))
+midiout.open_port(outports.index("Microsoft GS Wavetable Synth 0"))
 # midiout.open_port(outports.index("AbletonIn 1"))
-midiin.open_port(inports.index("mio 0"))
-# midiin.open_port(inports.index("MK-249C USB MIDI keyboard 2")) 
+# midiin.open_port(inports.index("mio 0"))
+midiin.open_port(inports.index("AbletonIn 0")) 
 
 
 
 def midi_callback(message, data):
+    print(message)
     rootmsg = message[0]
     if rootmsg[0] == 144:
         midiout.send_message(musx.note_on(rootmsg[0], rootmsg[1], rootmsg[2]))

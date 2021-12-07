@@ -99,7 +99,7 @@ if __name__ == "__main__":
     # of the image to be created
     seq = Seq()
     score = Score(out=seq)
-    meta = MidiFile.metatrack(ins={0: gm.ElectricPiano1})
+    meta = MidiFile.metatrack(ins={0: gm.Flute})
     w, h, zoom = 960, 127, 1
     hires_w, hires_h = 1920, 1080
     # Ok we're just gonna take the 127x960 and then map the color to a note
