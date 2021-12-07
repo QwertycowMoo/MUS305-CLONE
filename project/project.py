@@ -4,11 +4,10 @@
 from musx.gens import markov_analyze
 import rtmidi
 import musx
-import time
 from play_realtime_midi import play_midi
-from fractions import Fraction
 import copy
 import pprint
+from composers import melody_composer, chordal_composer, bass_composer
 
 # Real time midi out to Ableton
 ableton_midiout = rtmidi.MidiOut()
@@ -20,38 +19,6 @@ SCALES = ['C', 'G', 'D', 'A', 'E', 'B', 'F#',
 MAJOR_SCALE_INTERVALS = [2, 2, 1, 2, 2, 2, 1]
 MINOR_SCALE_INTERVALS = [2, 1, 2, 2, 1, 2, 2]
 LYDIAN_SCALE_INTERVALS = [2, 2, 2, 1, 2, 2, 1]
-
-
-def play_bitdrums(midifile):
-    """Expects a keynum corresponding to the drum note
-
-    Args:
-        keynum (int): keynum of the drum you want to play
-    """
-    for msg in midifile:
-        # Or something like this
-        print(msg)
-        keynum = msg[0]
-        bitdrums_midiout.send_message(musx.note_on(144, keynum, 100))
-        hardpad_midiout.send_message(musx.note_off(128, keynum, 0))
-        time.sleep(msg[1])
-
-
-def deconstruct_notes(melody):
-    """Takes the melody and turns it into an abstract list of semitone deltas
-    Expects melody to be a list of keynums
-    Eventually will take this list of deltas and apply to a key
-    Maybe use a high order markov to generate similar melodies?
-    """
-    notes = [note for note, length in melody]
-    return musx.deltas(notes)
-
-
-def deconstruct_rhythm(melody):
-    lengths = [length for note, length in melody]
-    max_length = max(lengths)
-    # Float division to turn it into ratios
-    return musx.divide(lengths, Fraction(max_length))
 
 
 def create_chord_scale(sharps, scale):
@@ -74,7 +41,7 @@ def create_scale(sharps, scale):
     return scale
 
 
-def harmonize(notes, chord_scale, complexity=1, notelen_param=0, harm_interest=0):
+def harmonize(notes, chord_scale, notelen_param=0, harm_interest=0):
     """
     Notes are the notes in one measure, where a measure is the time between strong beats
     Larger notelen_param, the more the length of the note matters, 0 for just pitches themselves
@@ -154,7 +121,7 @@ def split_melody(melody, time_sig):
     return measures
 
 
-def voicelead_bass(harmonized_chords, voicelead_rand=0):
+def voicelead_chords(harmonized_chords, voicelead_rand=0):
     """Voicelead param will try to move the bass as little as possible. More voicelead param leads to more randomness of how the bass moves
       Parallel array to harmonized chords that will tell how many inversions to apply onto the chord
       First chord will never be inverted
@@ -186,7 +153,7 @@ def voicelead_bass(harmonized_chords, voicelead_rand=0):
 def create_b_melody(original_melody, length, similarity=1, slowdown=0, transposition=0):
     """Uses markov_analyze to create a B section in a different key, then harmonizes it. 
     Similarity is markov depth of the analysis. Higher makes it more similar to the A melody
-    Length should default to half of the original melody, if not then it is number of measures
+    Length is number of measures
     Higher level function will handle splitting the melody into measures and taking care of unfilled last measure
     Args:
         length (int): length of b section
@@ -200,7 +167,7 @@ def create_b_melody(original_melody, length, similarity=1, slowdown=0, transposi
     markov_chain = musx.markov(rules)
     b_melody = []
     b_melody_length = 0
-    for i, note in enumerate(markov_chain):
+    for note in markov_chain:
         # Slow down b section
 
         if musx.odds(slowdown/10):
@@ -212,34 +179,6 @@ def create_b_melody(original_melody, length, similarity=1, slowdown=0, transposi
             break
         b_melody.append(note)
     return b_melody
-
-
-def melody_composer(score, melody, tempo, lokey=60, hikey=84, transpose_key=0, chan=0):
-    """
-    Expects a measure that has a tuple of (keynum, length_in_quarternotes)
-    Composes the melody within the [lokey, hikey] range. Will eventually transpose the key to create a different section
-    tempo is in bpm
-    Don't put the lokey or hikey to be a very small range, recommend 2 octaves
-    """
-    quarter_note_length = 60 / tempo
-
-    for note in melody:
-        pitch = note[0]
-        length = note[1] * quarter_note_length
-        if pitch == -1:
-            yield length
-            continue
-        while pitch < lokey:
-            pitch += 12
-        while pitch > hikey:
-            pitch -= 12
-
-        # Makes the higher notes slightly louder
-        amp = musx.rescale(pitch, lokey, hikey, 0.3, 0.7, 'exp') + .2
-        note = musx.Note(score.now, duration=length, pitch=pitch,
-                         amplitude=amp, instrument=chan)
-        score.add(note)
-        yield length
 
 
 def rotate_chord(chord, inversion):
@@ -266,110 +205,92 @@ def invert_chords(chords, inversions, transpose_key=0, lokey=44, hikey=72):
     return chords
 
 
-def chordal_composer(score, chords, inversions, tempo, time_sig, rhy_interest=0, chan=0):
-    """
+def gen_counter_scale(num_sharps, scale_type, start):
+    """Will yield one note at a time"""
+    index = start
+    direction = musx.pick(1, -1)  # Whether going up or down
+    inarow = 0
+    scale = create_scale(num_sharps, scale_type)
+    while True:
+        yield scale[index]
+        index += direction
+        inarow += 1
+        if musx.odds(inarow/8) or index == len(scale) - 1 or index == 0:
+            direction = -direction
+            inarow = 0
 
 
-    Args:
-        score ([type]): [description]
-        chords ([type]): List of list of Pitch objects
-        inversions ([type]): List of inversion, parallel to chords
-        tempo ([type]): bpm
-        has_pickup(boolean): whether the first chord should be just nothing
-        lokey (int, optional): [description]. Defaults to 36.
-        hikey (int, optional): [description]. Defaults to 60.
-        transpose_key (int, optional): [description]. Defaults to 0.
-        chan (int, optional): [description]. Defaults to 0.
+def create_countermelody(root_pos_chords, notes_per_measure, num_sharps, scale, time_sig):
 
-    Yields:
-        [type]: [description]
-    """
-    quarter_note_length = 60 / tempo
-    measure_length = time_sig[0] * 4 / time_sig[1]
-    length = measure_length * quarter_note_length
+    def gen_notes(num_notes):
+        start = musx.pick(7, 9, 11)
+        counter_gen = gen_counter_scale(num_sharps, scale, start)
+        generated_melody = []
+        for i in range(num_notes):
+            generated_melody.append(next(counter_gen))
+        return generated_melody
 
-    rhythmic_addon = 0
-    for chord in chords:
-
-        # Reset length if rhythmic interest was added
-        if rhythmic_addon != 0:
-            length -= rhythmic_addon
-            rhythmic_addon = 0
-
-        # Makes the inversions slightly softer
-        inversion = inversions[chords.index(chord)]
-        amp = musx.rescale(inversion, 0, 3, 0.5, 0.7, 'exp') + .2
-        # Create rhythmic interest by delaying or anticipating the next chord slightly
-        if musx.odds(rhy_interest):
-            if musx.odds(.5):
-                # delay next chord by adding an extra eighth note
-                rhythmic_addon = .5 * quarter_note_length
-                length += .5 * quarter_note_length
-            else:
-                # anticipate next chord by note reducing length of this chord by eighth note
-                rhythmic_addon = -.5 * quarter_note_length
-                length -= .5 * quarter_note_length
-
-        for note in chord:
-            pitch = note.keynum()
-            note = musx.Note(score.now, duration=length, pitch=pitch,
-                             amplitude=amp, instrument=chan)
-            score.add(note)
-        yield length
-
-
-def bass_composer(score, chords, tempo, lokey=32, hikey=60, chan=6):
-    for chord in chords:
-        # find the lowest note in the chord
-        lownote = None
-        for note in chord:
-            if lownote is None or note.keynum() < lownote:
-                lownote = note
-
-        bass_note = chord[0]
-    pass
-
-
-def sparkle_composer(score, chord, chan=5):
-    pass
+    countermelody = []
+    measure_length = time_sig[0]
+    # create a scale generator, then call next to fill in the number of notes
+    # start on the first, third, or fifth of the scale in the middle of the scale
+    gm_index = 0
+    if notes_per_measure < measure_length:
+        # start on second note and play number of notes, fill in the rest with rests
+        # generate four notes to be used
+        four_notes = gen_notes(4)
+        for measure in root_pos_chords:
+            countermelody.append((-1, 1))
+            for _ in range(notes_per_measure):
+                countermelody.append((four_notes[gm_index], 1))
+                gm_index += 1
+                if gm_index > 3:
+                    four_notes = gen_notes(4)
+                    gm_index = 0
+            for _ in range(measure_length - 1 - notes_per_measure):
+                countermelody.append((-1, 1))
+    else:
+        # Start on first note and do a scale with each note equal to measure_length/num_notes
+        for measure in root_pos_chords:
+            notes = gen_notes(notes_per_measure)
+            for n in notes:
+                countermelody.append((n, 4/notes_per_measure))
+    return countermelody
 
 
 if __name__ == "__main__":
     # Addon TODO: Create randomize all parameters and make composition
-    # TODO: Create some more options to compose chords into arps, bass then chord, etc
-    # TODO: Create bassline
-    # TODO: Create addons using sparkle
     # Addon TODO: Harmonize the melody using the other not used synth
-    # Doesn't matter if it sounds good
+    # Addon TODO: Create a melody in 3/4 and 2/4
     pp = pprint.PrettyPrinter()
 
     ### INTIALIZATION ###
     # Pure Imagination from willy wonka
-    # melody = [(-1,2), (60, 1), (63, 1),
-    #                     (70, 2), (60, 1), (63, 1),
-    #                     (70, 2), (60, 1), (63, 1),
-    #                     (74, 1.5), (75, 0.5), (74, 0.5), (75, 0.5), (74, 0.5), (75, 0.5),
-    #                     (74, 0.5), (70, 0.5),(67, 2), (60, 0.5), (63, 0.5),
-    #                     (67, 2), (68, 1), (70, 1),
-    #                     (67, 2), (65, 1), (63, 1),
-    #                     (62, 0.5), (63, 0.5), (62, 0.5), (63, 0.5 ), (62, 1), (58, 5)]
-    # num_sharps = -3
-    # tempo = 95
-    # time_sig = Fraction(4, 4)
-    # has_pickup = True
-    # Little melody I made up
-    melody = [(-1, 2), (70, 1), (69, 1),
-              (65, 1), (65, 0.5), (62, 0.5), (65, 0.5), (67, 1),
-              (62, 2.5), (70, 1), (69, 1),
-              (65, 1), (65, 0.5), (62, 0.5), (65, 0.5), (67, 1),
-              (74, 2.5), (75, 1), (74, 1),
-              (67, 2), (75, 1), (74, 1),
-              (69, 2), (72, 1), (74, 1),
-              (70, 8)]
+    melody = [(-1, 2), (60, 1), (63, 1),
+              (70, 2), (60, 1), (63, 1),
+              (70, 2), (60, 1), (63, 1),
+              (74, 1.5), (75, 0.5), (74, 0.5), (75, 0.5), (74, 0.5), (75, 0.5),
+              (74, 0.5), (70, 0.5), (67, 2), (60, 0.5), (63, 0.5),
+              (67, 2), (68, 1), (70, 1),
+              (67, 2), (65, 1), (63, 1),
+              (62, 0.5), (63, 0.5), (62, 0.5), (63, 0.5), (62, 1), (58, 5)]
+    num_sharps = -3
+    tempo = 95
     time_sig = (4, 4)
-    num_sharps = -2  # key signature of the melody, similar to how musicxml does it
     has_pickup = True
-    tempo = 120
+    # Little melody I made up
+    # melody = [(-1, 2), (70, 1), (69, 1),
+    #           (65, 1), (65, 0.5), (62, 0.5), (65, 0.5), (67, 1),
+    #           (62, 2.5), (70, 1), (69, 1),
+    #           (65, 1), (65, 0.5), (62, 0.5), (65, 0.5), (67, 1),
+    #           (74, 2.5), (75, 1), (74, 1),
+    #           (67, 2), (75, 1), (74, 1),
+    #           (69, 2), (72, 1), (74, 1),
+    #           (70, 8)]
+    # time_sig = (4, 4)
+    # num_sharps = -2  # key signature of the melody, similar to how musicxml does it
+    # has_pickup = True
+    # tempo = 120
 
     ### A SECTION ###
     print("A Section")
@@ -385,7 +306,11 @@ if __name__ == "__main__":
             # pickup measure
             continue
         chords.append(harmonize(measure, chord_scale, harm_interest=.1))
-    inversions = voicelead_bass(chords, voicelead_rand=0.2)
+    # Give root position chord to sparkle generator
+    countermelody = create_countermelody(
+        chords, 4, num_sharps, MAJOR_SCALE_INTERVALS, time_sig)
+    print(countermelody)
+    inversions = voicelead_chords(chords, voicelead_rand=0.2)
     chords = invert_chords(chords, inversions)
 
     ### B SECTION ###
@@ -402,19 +327,20 @@ if __name__ == "__main__":
     b_chords = []
     for measure in split_melody(b_melody, time_sig):
         b_chords.append(harmonize(measure, b_chord_scale, harm_interest=.1))
-    b_inversions = voicelead_bass(b_chords, voicelead_rand=0.2)
+    b_inversions = voicelead_chords(b_chords, voicelead_rand=0.2)
     b_chords = invert_chords(b_chords, b_inversions,
                              transpose_key=-7, lokey=52, hikey=79)
 
     ### A PRIME SECTION ###
     print("A' Section")
-    a_prime_melody = create_b_melody(melody, melody_length, similarity=5)
+    # create_b_melody(melody, melody_length, similarity=10)
+    a_prime_melody = melody
     a_prime_chords = []
     for measure in split_melody(a_prime_melody, time_sig):
         a_prime_chords.append(
             harmonize(measure, chord_scale, harm_interest=.1))
 
-    a_prime_inversions = voicelead_bass(a_prime_chords, voicelead_rand=0.6)
+    a_prime_inversions = voicelead_chords(a_prime_chords, voicelead_rand=0.6)
     a_prime_chords = invert_chords(a_prime_chords, a_prime_inversions)
     # start times
     start_time = 0
@@ -430,14 +356,22 @@ if __name__ == "__main__":
     score.compose([[0, melody_composer(score, melody, tempo, chan=0)],
                    [start_time, chordal_composer(
                        score, chords, inversions, tempo, time_sig, rhy_interest=0, chan=3)],
+                   [start_time, bass_composer(
+                       score, chords, tempo, time_sig, chan=5)],
+                   [start_time, melody_composer(
+                       score, countermelody, tempo, lokey=81, hikey=108, chan=4)],
                    [b_start_time, melody_composer(
                        score, b_melody, tempo, chan=1)],
                    [b_start_time, chordal_composer(
                        score, b_chords, inversions, tempo, time_sig, rhy_interest=0, chan=2)],
+                   [b_start_time, bass_composer(
+                       score, b_chords, tempo, time_sig, chan=5)],
                    [a_prime_start_time, melody_composer(
                        score, a_prime_melody, tempo, chan=0)],
-                   [start_time + a_prime_start_time, chordal_composer(
-                       score, a_prime_chords, a_prime_inversions, tempo, time_sig, rhy_interest=.3, chan=3)]
+                   [a_prime_start_time, chordal_composer(
+                       score, a_prime_chords, a_prime_inversions, tempo, time_sig, rhy_interest=.3, chan=3)],
+                   [a_prime_start_time,
+                       bass_composer(score, a_prime_chords, tempo, time_sig, chan=5)]
                    ])
     pp.pprint(chords)
     pp.pprint(b_chords)
